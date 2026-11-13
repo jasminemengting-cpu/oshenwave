@@ -68,7 +68,23 @@
   <div class="wave"></div>
 
   <section class="card">
-    <h2><span class="step">1</span>收集 Threads 留言</h2>
+    <h2><span class="step">1</span>登入 Threads，貼上貼文網址</h2>
+    <div id="apiMissing" class="mute hidden">⚠ 尚未設定後端網址（<code>config.js</code> 的 <code>API_BASE</code>），請先依 <code>SETUP.md</code> 完成設定，或使用下方的「其他收集方式」。</div>
+    <div id="loggedOut" class="hidden">
+      <button class="primary" id="loginBtn">🔐 用 Threads 帳號登入</button>
+      <p class="mute" style="margin:8px 0 0">只會取得「讀取你的貼文留言」的權限，不會發文或改動任何東西。</p>
+    </div>
+    <div id="loggedIn" class="hidden">
+      <div class="row" style="margin-top:0">✅ 已登入 <b id="whoami"></b> <button id="logoutBtn" style="padding:4px 12px;font-size:13px">登出</button></div>
+      <div class="row">
+        <input type="text" id="postUrl" placeholder="貼上你的 Threads 貼文網址，例如 https://www.threads.com/@帳號/post/XXXX" style="flex:1;min-width:260px">
+        <button class="primary" id="fetchBtn">⚡ 抓取留言</button>
+      </div>
+      <p class="mute" style="margin:8px 0 0">Threads 官方規定只能讀取<b>登入帳號自己發的貼文</b>的留言。</p>
+    </div>
+    <div id="fetchMsg" class="mute" style="margin-top:8px"></div>
+    <details style="margin-top:14px">
+    <summary>其他收集方式（書籤小工具）</summary>
     <ol>
       <li><b>電腦版 Chrome / Edge：</b>把這個按鈕拖到書籤列 👉 <a class="bm" id="bookmarklet" href="#" onclick="alert('請把這個按鈕「拖曳」到瀏覽器的書籤列，不要直接點。');return false;">🌊 收集留言</a></li>
       <li>到 threads.com 打開你的抽獎貼文（建議先登入，才看得到全部留言）</li>
@@ -82,10 +98,12 @@
       <button id="copyCode">複製程式碼</button> <span id="copyMsg" class="mute"></span>
     </details>
     <p class="mute" style="margin-bottom:0">也可以貼上 Python 版產生的 <code>comments.csv</code>，或是一行一個帳號的名單。</p>
+    </details>
   </section>
 
   <section class="card">
-    <h2><span class="step">2</span>貼上留言資料</h2>
+    <h2><span class="step">2</span>留言資料</h2>
+    <p class="mute" style="margin-top:0">登入抓取後會自動填入；用其他方式收集的話，貼在這裡。</p>
     <textarea id="input" placeholder="在這裡貼上收集到的資料（Ctrl+V / ⌘+V）"></textarea>
     <div class="row">
       <button class="primary" id="load">讀取資料</button>
@@ -109,6 +127,7 @@
     <div class="row" style="gap:22px">
       <label class="chk"><input type="checkbox" id="allKw"> 須包含<b>全部</b>關鍵字</label>
       <label class="chk"><input type="checkbox" id="unique" checked> 每人只算一次</label>
+      <label class="chk"><input type="checkbox" id="topOnly"> 只算直接回覆貼文的留言（排除樓中樓）</label>
     </div>
   </section>
 
@@ -137,10 +156,58 @@
   <p class="mute" style="text-align:center">抽獎使用以種子為基礎的亂數：公布「亂數種子」和參加名單，任何人都能在這個網頁輸入同一組種子，重現一模一樣的結果。</p>
 </div>
 
+<script src="config.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 let comments = [];   // {u,t,time(ms),r}
 let lastDraw = null;
+
+// ---- Threads 登入 ----
+const API = (window.OSHENWAVE_API_BASE || '').replace(/\/$/, '');
+const store = {
+  get() { try { const s = JSON.parse(localStorage.getItem('ow_auth') || 'null'); return s && s.exp > Date.now() ? s : null; } catch (e) { return null; } },
+  set(v) { try { localStorage.setItem('ow_auth', JSON.stringify(v)); } catch (e) {} },
+  clear() { try { localStorage.removeItem('ow_auth'); } catch (e) {} },
+};
+let auth = null;
+(function initAuth() {
+  if (location.hash.length > 1) {
+    const h = new URLSearchParams(location.hash.slice(1));
+    if (h.get('token')) {
+      store.set({ token: h.get('token'), user: h.get('username') || '', exp: Date.now() + (+h.get('expires_in') || 3600) * 1000 });
+    } else if (h.get('error')) {
+      $('fetchMsg').textContent = '❌ ' + h.get('error');
+    }
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+  auth = store.get();
+  renderAuth();
+})();
+function renderAuth() {
+  $('apiMissing').classList.toggle('hidden', !!API);
+  $('loggedOut').classList.toggle('hidden', !API || !!auth);
+  $('loggedIn').classList.toggle('hidden', !API || !auth);
+  if (auth) { $('whoami').textContent = '@' + auth.user; if (!$('author').value) $('author').value = auth.user; }
+}
+$('loginBtn').onclick = () => { location.href = API + '/login'; };
+$('logoutBtn').onclick = () => { store.clear(); auth = null; renderAuth(); };
+$('fetchBtn').onclick = async () => {
+  const u = $('postUrl').value.trim();
+  if (!/\/post\/[A-Za-z0-9_-]+/.test(u)) { $('fetchMsg').textContent = '❌ 請貼上完整的貼文網址，裡面要有 /post/'; return; }
+  $('fetchBtn').disabled = true; $('fetchMsg').textContent = '⏳ 抓取中，留言很多時可能要等十幾秒…';
+  try {
+    const r = await fetch(API + '/api/comments?url=' + encodeURIComponent(u), { headers: { Authorization: 'Bearer ' + auth.token } });
+    const d = await r.json();
+    if (r.status === 401) { store.clear(); auth = null; renderAuth(); }
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    const text = JSON.stringify(d);
+    $('input').value = text; load(text);
+    $('fetchMsg').textContent = `✅ 抓到 ${d.comments.length} 則留言`;
+  } catch (e) {
+    $('fetchMsg').textContent = '❌ ' + e.message;
+  } finally { $('fetchBtn').disabled = false; }
+};
+$('postUrl').addEventListener('keydown', e => { if (e.key === 'Enter') $('fetchBtn').click(); });
 
 // ---- 書籤小工具 ----
 fetch('collector.js').then(r => r.text()).then(code => {
@@ -175,7 +242,7 @@ function parseInput(text) {
   if (text[0] === '{' || text[0] === '[') {
     const d = JSON.parse(text);
     const list = Array.isArray(d) ? d : (d.comments || []);
-    return { author: d.author || '', list: list.map(c => ({ u: String(c.u || c.username || '').replace(/^@/, ''), t: c.t ?? c.text ?? '', time: toMs(c.time), r: c.r || c.reply_to || '' })) };
+    return { author: d.author || '', list: list.map(c => ({ u: String(c.u || c.username || '').replace(/^@/, ''), t: c.t ?? c.text ?? '', time: toMs(c.time), r: c.r || c.reply_to || '', top: c.top !== false, hidden: !!c.hidden })) };
   }
   const rows = parseCSV(text);
   const head = rows[0].map(h => h.trim().toLowerCase());
@@ -217,6 +284,8 @@ function evaluate() {
     const u = c.u.toLowerCase(), t = (c.t || '').toLowerCase();
     let why = '';
     if (ex.has(u)) why = u === au ? '作者' : '排除名單';
+    else if (c.hidden) why = '已隱藏';
+    else if ($('topOnly').checked && c.top === false) why = '樓中樓';
     else if (dl && c.time && c.time > dl) why = '超過截止時間';
     else if (kws.length && (allKw ? !kws.every(k => t.includes(k)) : !kws.some(k => t.includes(k)))) why = '未含關鍵字';
     else if (minTags) {
@@ -238,7 +307,7 @@ function refresh() {
   $('tbody').innerHTML = ev.map((c, i) => `<tr><td class="mute">${i + 1}</td><td class="u">@${esc(c.u)}</td><td>${esc(c.t)}</td><td class="mute" style="white-space:nowrap">${fmt(c.time)}</td><td>${c.why ? `<span class="tag bad">${c.why}</span>` : '<span class="tag ok">合格</span>'}</td></tr>`).join('');
   $('go').disabled = ok.length === 0;
 }
-['nWin', 'nBak', 'minTags', 'deadline', 'keywords', 'exclude', 'author', 'allKw', 'unique'].forEach(id => $(id).addEventListener('input', refresh));
+['nWin', 'nBak', 'minTags', 'deadline', 'keywords', 'exclude', 'author', 'allKw', 'unique', 'topOnly'].forEach(id => $(id).addEventListener('input', refresh));
 
 // ---- 可重現的亂數 ----
 async function rngFromSeed(seed) {
