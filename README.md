@@ -1,6 +1,18 @@
 # oshenwave
 
-## Threads 留言抽獎程式
+## 🌐 網頁版（推薦）
+
+👉 **https://jasminemengting-cpu.github.io/oshenwave/**
+
+1. 把網頁上的「🌊 收集留言」按鈕拖到瀏覽器書籤列
+2. 打開 Threads 抽獎貼文，點書籤 → 自動收集留言 → 按「複製」
+3. 回到網頁貼上、設定條件、按「開始抽獎」
+
+所有資料只在你的瀏覽器處理，不會上傳。
+
+---
+
+## 🐍 Python 版 Threads 留言抽獎程式
 
 自動抓取 Threads 貼文的所有留言，存成 CSV，再依規則公平隨機抽出得獎者。
 

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oshenwave｜Threads 留言抽獎</title>
+<style>
+  :root{
+    --bg:#071624; --panel:#0d2235; --line:#1d4058; --ink:#e8f6f7; --mute:#8fb3c2;
+    --aqua:#5ce1e6; --coral:#ff8a65; --ok:#7be0a4; --bad:#ff7a8a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 80% -10%,#123a55 0,transparent 60%),var(--bg);color:var(--ink);
+       font:15px/1.6 -apple-system,BlinkMacSystemFont,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;min-height:100vh}
+  .wrap{max-width:980px;margin:0 auto;padding:32px 20px 80px}
+  header h1{margin:0;font-size:30px;letter-spacing:.5px}
+  header h1 span{color:var(--aqua)}
+  header p{margin:4px 0 0;color:var(--mute)}
+  .wave{height:14px;margin:18px 0 26px;background:
+    radial-gradient(circle at 10px -4px,transparent 12px,var(--aqua) 13px,var(--aqua) 14px,transparent 15px) 0 0/20px 14px repeat-x;opacity:.5}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin-bottom:18px}
+  .card h2{margin:0 0 12px;font-size:18px;display:flex;align-items:center;gap:10px}
+  .step{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--aqua);color:var(--bg);font-size:14px;font-weight:800}
+  .mute{color:var(--mute);font-size:14px}
+  ol{margin:6px 0 0;padding-left:22px} li{margin:4px 0}
+  .bm{display:inline-block;padding:9px 16px;border-radius:10px;background:var(--coral);color:#1a0b05;font-weight:800;text-decoration:none;cursor:grab;margin:6px 0}
+  button,.btn{cursor:pointer;border:0;border-radius:10px;padding:9px 16px;font:inherit;font-weight:700;background:var(--line);color:var(--ink)}
+  button.primary{background:var(--aqua);color:var(--bg)}
+  button.big{font-size:18px;padding:14px 34px;border-radius:14px}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  textarea,input[type=text],input[type=number],input[type=datetime-local]{width:100%;background:#081a29;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit}
+  textarea{min-height:110px;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px 18px}
+  label.f{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
+  .chk{display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .stats{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0 10px}
+  .stat{background:#081a29;border:1px solid var(--line);border-radius:12px;padding:8px 14px}
+  .stat b{font-size:20px;color:var(--aqua);display:block;line-height:1.2}
+  .tablebox{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:12px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{position:sticky;top:0;background:#0a1d2e;color:var(--mute);font-weight:600}
+  td.u{white-space:nowrap;font-weight:600}
+  .tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;white-space:nowrap}
+  .tag.ok{background:rgba(123,224,164,.15);color:var(--ok)} .tag.bad{background:rgba(255,122,138,.12);color:var(--bad)}
+  .stage{text-align:center;padding:26px 10px}
+  .roller{font-size:38px;font-weight:800;min-height:58px;color:var(--aqua);letter-spacing:.5px;word-break:break-all}
+  .roller.win{color:var(--coral);animation:pop .5s}
+  @keyframes pop{0%{transform:scale(.7);opacity:.3}60%{transform:scale(1.12)}100%{transform:scale(1)}}
+  .winners{list-style:none;padding:0;margin:18px auto 0;max-width:620px;text-align:left}
+  .winners li{background:#081a29;border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:8px 0;display:flex;gap:12px;align-items:baseline}
+  .winners li .n{color:var(--coral);font-weight:800;min-width:46px}
+  .winners li.bk .n{color:var(--mute)}
+  .winners li .t{color:var(--mute);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .proof{margin-top:14px;font-size:13px;color:var(--mute)}
+  code{background:#081a29;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+  details summary{cursor:pointer;color:var(--aqua)}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🌊 <span>oshenwave</span> Threads 留言抽獎</h1>
+    <p>收集留言 → 設定條件 → 公平抽出得獎者。所有資料只在你的瀏覽器裡處理，不會上傳。</p>
+  </header>
+  <div class="wave"></div>
+
+  <section class="card">
+    <h2><span class="step">1</span>收集 Threads 留言</h2>
+    <ol>
+      <li><b>電腦版 Chrome / Edge：</b>把這個按鈕拖到書籤列 👉 <a class="bm" id="bookmarklet" href="#" onclick="alert('請把這個按鈕「拖曳」到瀏覽器的書籤列，不要直接點。');return false;">🌊 收集留言</a></li>
+      <li>到 threads.com 打開你的抽獎貼文（建議先登入，才看得到全部留言）</li>
+      <li>點書籤列上的「🌊 收集留言」，它會自動往下捲動收集，完成後按「複製」</li>
+      <li>回到這裡，貼到下面的步驟 2</li>
+    </ol>
+    <details style="margin-top:10px">
+      <summary>書籤列沒出現 / 想用主控台執行</summary>
+      <p class="mute">Mac 按 <code>⌘ + Shift + B</code>、Windows 按 <code>Ctrl + Shift + B</code> 可以顯示書籤列。<br>
+      也可以在 Threads 貼文頁按 <code>F12</code> 打開「Console / 主控台」，貼上程式碼後按 Enter。</p>
+      <button id="copyCode">複製程式碼</button> <span id="copyMsg" class="mute"></span>
+    </details>
+    <p class="mute" style="margin-bottom:0">也可以貼上 Python 版產生的 <code>comments.csv</code>，或是一行一個帳號的名單。</p>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">2</span>貼上留言資料</h2>
+    <textarea id="input" placeholder="在這裡貼上收集到的資料（Ctrl+V / ⌘+V）"></textarea>
+    <div class="row">
+      <button class="primary" id="load">讀取資料</button>
+      <label class="btn" style="display:inline-block">開啟檔案<input type="file" id="file" accept=".json,.csv,.txt" hidden></label>
+      <span id="loadMsg" class="mute"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">3</span>抽獎條件</h2>
+    <div class="grid">
+      <div><label class="f">正取人數</label><input type="number" id="nWin" min="1" value="1"></div>
+      <div><label class="f">備取人數</label><input type="number" id="nBak" min="0" value="0"></div>
+      <div><label class="f">至少標註幾位朋友 (@)</label><input type="number" id="minTags" min="0" value="0"></div>
+      <div><label class="f">截止時間（留空 = 不限）</label><input type="datetime-local" id="deadline"></div>
+      <div><label class="f">必須包含的關鍵字（用逗號分隔）</label><input type="text" id="keywords" placeholder="例如：+1, 想要"></div>
+      <div><label class="f">排除的帳號（用逗號分隔）</label><input type="text" id="exclude" placeholder="例如：friend1, friend2"></div>
+      <div><label class="f">貼文作者帳號（會被排除）</label><input type="text" id="author" placeholder="自動偵測"></div>
+      <div><label class="f">亂數種子（留空自動產生）</label><input type="text" id="seed" placeholder="自動"></div>
+    </div>
+    <div class="row" style="gap:22px">
+      <label class="chk"><input type="checkbox" id="allKw"> 須包含<b>全部</b>關鍵字</label>
+      <label class="chk"><input type="checkbox" id="unique" checked> 每人只算一次</label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">4</span>參加名單</h2>
+    <div class="stats" id="stats"><span class="mute">尚未讀取資料</span></div>
+    <div class="tablebox"><table><thead><tr><th>#</th><th>帳號</th><th>留言</th><th>時間</th><th>資格</th></tr></thead><tbody id="tbody"></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">5</span>開獎</h2>
+    <div class="stage">
+      <div class="roller" id="roller">準備好了嗎？</div>
+      <div class="row" style="justify-content:center;margin-top:18px">
+        <button class="primary big" id="go" disabled>🎲 開始抽獎</button>
+      </div>
+      <ul class="winners" id="winners"></ul>
+      <div class="proof" id="proof"></div>
+      <div class="row hidden" id="after" style="justify-content:center">
+        <button id="copyResult">複製得獎公告</button>
+        <button id="dlResult">下載得獎名單 CSV</button>
+      </div>
+    </div>
+  </section>
+
+  <p class="mute" style="text-align:center">抽獎使用以種子為基礎的亂數：公布「亂數種子」和參加名單，任何人都能在這個網頁輸入同一組種子，重現一模一樣的結果。</p>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let comments = [];   // {u,t,time(ms),r}
+let lastDraw = null;
+
+// ---- 書籤小工具 ----
+fetch('collector.js').then(r => r.text()).then(code => {
+  $('bookmarklet').href = 'javascript:' + encodeURIComponent(code.replace(/\n\s*/g, '\n'));
+  $('bookmarklet').onclick = e => { e.preventDefault(); alert('請把這個按鈕「拖曳」到瀏覽器的書籤列，不要直接點。'); };
+  $('copyCode').onclick = () => navigator.clipboard.writeText(code).then(() => $('copyMsg').textContent = '已複製！');
+}).catch(() => { $('copyMsg').textContent = '（請透過網址開啟本頁才能使用書籤小工具）'; });
+
+// ---- 讀取資料 ----
+function parseCSV(text) {
+  const rows = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { row.push(cur); cur = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cur); rows.push(row); row = []; cur = ''; }
+    else cur += c;
+  }
+  if (cur || row.length) { row.push(cur); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim()));
+}
+function toMs(v) {
+  if (!v) return 0;
+  if (typeof v === 'number') return v < 1e12 ? v * 1000 : v;
+  const d = new Date(String(v).replace(' ', 'T'));
+  return isNaN(d) ? 0 : d.getTime();
+}
+function parseInput(text) {
+  text = text.replace(/^﻿/, '').trim();
+  if (!text) throw new Error('沒有資料');
+  if (text[0] === '{' || text[0] === '[') {
+    const d = JSON.parse(text);
+    const list = Array.isArray(d) ? d : (d.comments || []);
+    return { author: d.author || '', list: list.map(c => ({ u: String(c.u || c.username || '').replace(/^@/, ''), t: c.t ?? c.text ?? '', time: toMs(c.time), r: c.r || c.reply_to || '' })) };
+  }
+  const rows = parseCSV(text);
+  const head = rows[0].map(h => h.trim().toLowerCase());
+  const ui = head.indexOf('username');
+  if (ui >= 0) {
+    const ti = head.indexOf('text'), mi = head.indexOf('time'), ri = head.indexOf('reply_to');
+    return { author: '', list: rows.slice(1).map(r => ({ u: (r[ui] || '').trim().replace(/^@/, ''), t: ti >= 0 ? r[ti] || '' : '', time: mi >= 0 ? toMs(r[mi]) : 0, r: ri >= 0 ? r[ri] || '' : '' })) };
+  }
+  return { author: '', list: text.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => {
+    const m = l.match(/^@?([A-Za-z0-9_.]+)\s*[,，:：\t ]?\s*(.*)$/);
+    return m ? { u: m[1], t: m[2], time: 0, r: '' } : null;
+  }).filter(Boolean) };
+}
+function load(text) {
+  try {
+    const { author, list } = parseInput(text);
+    comments = list.filter(c => c.u);
+    if (author && !$('author').value) $('author').value = author;
+    $('loadMsg').textContent = `✅ 讀入 ${comments.length} 則留言` + (author ? `，作者 @${author}` : '');
+    refresh();
+  } catch (e) { $('loadMsg').textContent = '❌ 讀取失敗：' + e.message; }
+}
+$('load').onclick = () => load($('input').value);
+$('input').addEventListener('paste', () => setTimeout(() => load($('input').value), 0));
+$('file').onchange = e => { const f = e.target.files[0]; if (f) f.text().then(t => { $('input').value = t; load(t); }); };
+
+// ---- 資格篩選 ----
+const splitList = s => s.split(/[,，\s]+/).map(x => x.trim().replace(/^@/, '').toLowerCase()).filter(Boolean);
+function evaluate() {
+  const kws = $('keywords').value.split(/[,，]/).map(s => s.trim().toLowerCase()).filter(Boolean);
+  const ex = new Set(splitList($('exclude').value));
+  const au = $('author').value.trim().replace(/^@/, '').toLowerCase();
+  if (au) ex.add(au);
+  const minTags = +$('minTags').value || 0;
+  const dl = $('deadline').value ? new Date($('deadline').value).getTime() : 0;
+  const allKw = $('allKw').checked, unique = $('unique').checked;
+  const seen = new Set();
+  return comments.map(c => {
+    const u = c.u.toLowerCase(), t = (c.t || '').toLowerCase();
+    let why = '';
+    if (ex.has(u)) why = u === au ? '作者' : '排除名單';
+    else if (dl && c.time && c.time > dl) why = '超過截止時間';
+    else if (kws.length && (allKw ? !kws.every(k => t.includes(k)) : !kws.some(k => t.includes(k)))) why = '未含關鍵字';
+    else if (minTags) {
+      const tags = new Set((c.t.match(/@([A-Za-z0-9_.]+)/g) || []).map(x => x.slice(1).toLowerCase()));
+      tags.delete(u);
+      if (tags.size < minTags) why = `標註不足 ${minTags} 人`;
+    }
+    if (!why && unique) { if (seen.has(u)) why = '重複留言'; else seen.add(u); }
+    return { ...c, why };
+  });
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = ms => ms ? new Date(ms).toLocaleString('zh-TW', { hour12: false }) : '';
+function refresh() {
+  const ev = evaluate();
+  const ok = ev.filter(c => !c.why);
+  const people = new Set(ok.map(c => c.u.toLowerCase())).size;
+  $('stats').innerHTML = `<div class="stat"><b>${comments.length}</b>全部留言</div><div class="stat"><b>${ok.length}</b>合格籤數</div><div class="stat"><b>${people}</b>合格人數</div>`;
+  $('tbody').innerHTML = ev.map((c, i) => `<tr><td class="mute">${i + 1}</td><td class="u">@${esc(c.u)}</td><td>${esc(c.t)}</td><td class="mute" style="white-space:nowrap">${fmt(c.time)}</td><td>${c.why ? `<span class="tag bad">${c.why}</span>` : '<span class="tag ok">合格</span>'}</td></tr>`).join('');
+  $('go').disabled = ok.length === 0;
+}
+['nWin', 'nBak', 'minTags', 'deadline', 'keywords', 'exclude', 'author', 'allKw', 'unique'].forEach(id => $(id).addEventListener('input', refresh));
+
+// ---- 可重現的亂數 ----
+async function rngFromSeed(seed) {
+  const buf = new Uint32Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(seed)));
+  let [a, b, c, d] = buf;
+  return () => { // sfc32
+    a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+    let t = (a + b) | 0; a = b ^ (b >>> 9); b = (c + (c << 3)) | 0; c = (c << 21) | (c >>> 11); d = (d + 1) | 0; t = (t + d) | 0; c = (c + t) | 0;
+    return (t >>> 0) / 4294967296;
+  };
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+$('go').onclick = async () => {
+  const pool = evaluate().filter(c => !c.why);
+  const nWin = Math.max(1, +$('nWin').value || 1), nBak = Math.max(0, +$('nBak').value || 0);
+  const seed = $('seed').value.trim() || [...crypto.getRandomValues(new Uint8Array(6))].map(b => b.toString(16).padStart(2, '0')).join('');
+  const rand = await rngFromSeed(seed);
+  const arr = pool.slice(), total = Math.min(nWin + nBak, arr.length);
+  for (let i = 0; i < total; i++) { const j = i + Math.floor(rand() * (arr.length - i)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+  const picked = arr.slice(0, total);
+
+  $('go').disabled = true; $('winners').innerHTML = ''; $('proof').textContent = ''; $('after').classList.add('hidden');
+  const roller = $('roller');
+  for (let k = 0; k < picked.length; k++) {
+    roller.classList.remove('win');
+    const end = performance.now() + (k < nWin ? 2200 : 1200);
+    while (performance.now() < end) { roller.textContent = '@' + pool[Math.floor(Math.random() * pool.length)].u; await sleep(60); }
+    const w = picked[k], bk = k >= nWin;
+    roller.textContent = '@' + w.u; void roller.offsetWidth; roller.classList.add('win');
+    const li = document.createElement('li'); if (bk) li.className = 'bk';
+    li.innerHTML = `<span class="n">${bk ? '備取' + (k - nWin + 1) : '🎉 ' + (k + 1)}</span><b>@${esc(w.u)}</b><span class="t">${esc(w.t)}</span>`;
+    $('winners').appendChild(li);
+    await sleep(500);
+  }
+  if (picked.length) roller.textContent = '🎉 恭喜 ' + picked.slice(0, nWin).map(w => '@' + w.u).join('、');
+  const at = new Date();
+  lastDraw = { seed, at, picked, nWin, poolSize: pool.length };
+  $('proof').innerHTML = `抽獎時間 ${fmt(at.getTime())}｜合格籤數 ${pool.length}｜亂數種子 <code>${esc(seed)}</code>` + (total < nWin + nBak ? '<br>⚠ 合格人數少於要抽的人數，已全部抽出。' : '');
+  $('after').classList.remove('hidden'); $('go').disabled = false; $('go').textContent = '🎲 再抽一次';
+};
+$('copyResult').onclick = () => {
+  const d = lastDraw; if (!d) return;
+  const lines = ['🎉 抽獎結果公布 🎉', ''];
+  d.picked.forEach((w, k) => lines.push(k < d.nWin ? `${k + 1}. @${w.u}` : `備取${k - d.nWin + 1}. @${w.u}`));
+  lines.push('', `抽獎時間：${fmt(d.at.getTime())}`, `合格籤數：${d.poolSize}`, `亂數種子：${d.seed}`, '恭喜得獎者！請私訊聯繫領獎 🙌');
+  navigator.clipboard.writeText(lines.join('\n')).then(() => $('copyResult').textContent = '已複製 ✓');
+};
+$('dlResult').onclick = () => {
+  const d = lastDraw; if (!d) return;
+  const q = s => '"' + String(s).replace(/"/g, '""') + '"';
+  const csv = '﻿名次,帳號,留言,時間\n' + d.picked.map((w, k) => [k < d.nWin ? k + 1 : '備取' + (k - d.nWin + 1), '@' + w.u, w.t, fmt(w.time)].map(q).join(',')).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'winners.csv'; a.click();
+};
+</script>
+</body>
+</html>
